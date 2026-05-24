@@ -322,7 +322,7 @@ process.on('SIGTERM', () => { void stop(); });
 		return {
 			platform: 'node',
 			target: 'node22',
-			banner: { js: `import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);` },
+			banner: { js: `import { createRequire as __flueCreateRequire } from 'node:module'; const require = __flueCreateRequire(import.meta.url);` },
 			// just-bash's archive code wraps these native addons in dynamic imports
 			// inside try/catch and declares them as optionalDependencies. Externalize
 			// so esbuild doesn't try to resolve them at bundle time — the failure
