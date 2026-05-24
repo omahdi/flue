@@ -1,8 +1,7 @@
 import { InvalidRequestError } from '../errors.ts';
 import type { AgentWebSocketClientMessage, WebSocketServerMessage, WorkflowWebSocketClientMessage } from '../types.ts';
 import type { AgentHandler, CreateContextFn, RunHandlerFn, WorkflowHandler } from '../runtime/handle-agent.ts';
-import { invokeAttached } from '../runtime/handle-agent.ts';
-import { generateRunId } from '../runtime/ids.ts';
+import { invokeAttached, invokeDirectAttached } from '../runtime/handle-agent.ts';
 import type { RunRegistry } from '../runtime/run-registry.ts';
 import type { RunStore } from '../runtime/run-store.ts';
 import type { RunSubscriberRegistry } from '../runtime/run-subscribers.ts';
@@ -131,13 +130,11 @@ async function invokeAgentPrompt(
 	message: Extract<AgentWebSocketClientMessage, { type: 'prompt' }>,
 	options: CloudflareAgentWebSocketOptions,
 ): Promise<void> {
-	const runId = generateRunId();
 	let didStart = false;
 	try {
-		const invocation = await invokeAttached({
-			owner: { kind: 'agent', agentName: options.name, instanceId: options.id },
+		const result = await invokeDirectAttached({
+			agentName: options.name,
 			id: options.id,
-			runId,
 			payload: { message: message.message, session: message.session },
 			request: options.request,
 			handler: options.handler,
@@ -146,18 +143,15 @@ async function invokeAgentPrompt(
 			onEvent: (event) => {
 				if (!didStart) {
 					didStart = true;
-					send(connection, { version: 1, type: 'started', requestId: message.requestId, runId });
+					send(connection, { version: 1, type: 'started', requestId: message.requestId });
 				}
-				send(connection, { version: 1, type: 'event', requestId: message.requestId, runId, event });
+				send(connection, { version: 1, type: 'event', requestId: message.requestId, event });
 			},
 			emitIdleOnComplete: true,
-			runStore: options.runStore,
-			runSubscribers: options.runSubscribers,
-			runRegistry: options.runRegistry,
 		});
-		send(connection, { version: 1, type: 'result', requestId: message.requestId, runId, result: invocation.result ?? null });
+		send(connection, { version: 1, type: 'result', requestId: message.requestId, result: result ?? null });
 	} catch (error) {
-		sendError(connection, error, message.requestId, didStart ? runId : undefined);
+		sendError(connection, error, message.requestId);
 	}
 }
 

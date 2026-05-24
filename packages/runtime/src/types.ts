@@ -117,20 +117,20 @@ export type WebSocketServerMessage =
 			version: 1;
 			type: 'started';
 			requestId: string;
-			runId: string;
+			runId?: string;
 	  }
 	| {
 			version: 1;
 			type: 'event';
 			requestId: string;
-			runId: string;
+			runId?: string;
 			event: FlueEvent;
 	  }
 	| {
 			version: 1;
 			type: 'result';
 			requestId: string;
-			runId: string;
+			runId?: string;
 			result: unknown;
 	  }
 	| {
@@ -714,12 +714,7 @@ export interface MessageEntry extends SessionEntryBase {
 	type: 'message';
 	message: AgentMessage;
 	source?: 'prompt' | 'skill' | 'shell' | 'task' | 'retry' | 'dispatch';
-	direct?: DirectMessageMetadata;
 	dispatch?: DispatchMessageMetadata;
-}
-
-export interface DirectMessageMetadata {
-	runId: string;
 }
 
 export interface DispatchMessageMetadata {
@@ -893,6 +888,16 @@ export type FlueEvent = (
 			startedAt: string;
 			payload: unknown;
 		}
+	| { type: 'agent_start' }
+	| { type: 'agent_end'; messages: AgentMessage[] }
+	| { type: 'turn_start' }
+	| { type: 'turn_end'; message: AgentMessage; toolResults: AgentMessage[] }
+	| { type: 'message_start'; message: AgentMessage }
+	| { type: 'message_update'; message: AgentMessage; assistantMessageEvent: unknown }
+	| { type: 'message_end'; message: AgentMessage }
+	| { type: 'tool_execution_start'; toolCallId: string; toolName: string; args: unknown }
+	| { type: 'tool_execution_update'; toolCallId: string; toolName: string; args: unknown; partialResult: unknown }
+	| { type: 'tool_execution_end'; toolCallId: string; toolName: string; result: unknown; isError: boolean }
 	| { type: 'text_delta'; text: string }
 	| { type: 'thinking_start' }
 	| { type: 'thinking_delta'; delta: string }

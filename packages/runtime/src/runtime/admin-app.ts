@@ -20,10 +20,8 @@ import { type FlueRuntime, getFlueRuntime, handleRunById } from './flue-app.ts';
 import type { ListRunsOpts, RunRegistry } from './run-registry.ts';
 import type { RunStatus } from './run-store.ts';
 import {
-	AdminInstanceRunsQuerySchema,
 	AdminInstancesQuerySchema,
 	AdminRunsQuerySchema,
-	AgentInstanceParamSchema,
 	AgentNameParamSchema,
 	ErrorEnvelopeSchema,
 	ListAgentsResponseSchema,
@@ -44,13 +42,6 @@ export function admin(): Hono {
 		validated('param', AgentNameParamSchema),
 		validated('query', AdminInstancesQuerySchema),
 		listInstancesHandler,
-	);
-	app.get(
-		'/agents/:name/instances/:id/runs',
-		describeRoute(adminInstanceRunsSpec() as DescribeRouteOptions),
-		validated('param', AgentInstanceParamSchema),
-		validated('query', AdminInstanceRunsQuerySchema),
-		listInstanceRunsHandler,
 	);
 	app.get(
 		'/runs',
@@ -138,23 +129,11 @@ function adminInstancesSpec() {
 	};
 }
 
-function adminInstanceRunsSpec() {
-	return {
-		tags: ['admin'],
-		operationId: 'adminListAgentInstanceRuns',
-		summary: 'List runs for an agent instance',
-		responses: {
-			200: jsonResponse(ListRunsResponseSchema, listResponseDescription),
-			...errorResponses(),
-		},
-	};
-}
-
 function adminRunsSpec() {
 	return {
 		tags: ['admin'],
 		operationId: 'adminListRuns',
-		summary: 'List runs across the deployment',
+		summary: 'List workflow runs across the deployment',
 		responses: {
 			200: jsonResponse(ListRunsResponseSchema, listResponseDescription),
 			...errorResponses(),
@@ -166,7 +145,7 @@ function adminRunDetailSpec() {
 	return {
 		tags: ['admin'],
 		operationId: 'adminGetRun',
-		summary: 'Get a run record',
+		summary: 'Get a workflow run record',
 		responses: {
 			200: jsonResponse(RunRecordSchema, 'Run record.'),
 			...errorResponses(),
@@ -187,18 +166,6 @@ const listInstancesHandler: MiddlewareHandler = async (c) => {
 	const query = parseListQuery(c.req.raw);
 	const out = await registry.listInstances({ agentName, ...query });
 	return c.json({ items: out.instances, nextCursor: out.nextCursor });
-};
-
-const listInstanceRunsHandler: MiddlewareHandler = async (c) => {
-	const rt = requireRuntime();
-	const agentName = c.req.param('name') ?? '';
-	const instanceId = c.req.param('id') ?? '';
-	assertKnownAgent(rt, agentName);
-	const registry = requireRegistry(rt, c.env);
-	const query = parseListQuery(c.req.raw);
-	const status = statusFromRequest(c.req.raw);
-	const out = await registry.listRuns({ agentName, instanceId, status, ...query });
-	return c.json({ items: out.runs, nextCursor: out.nextCursor });
 };
 
 const listRunsHandler: MiddlewareHandler = async (c) => {

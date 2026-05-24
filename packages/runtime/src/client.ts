@@ -22,7 +22,7 @@ import type {
 
 export interface FlueContextConfig {
 	id: string;
-	runId: string;
+	runId?: string;
 	payload: any;
 	env: Record<string, any>;
 	agentConfig: AgentConfig;
@@ -44,7 +44,7 @@ export interface FlueContextConfig {
 
 /** Extends FlueContext with server-only methods. Agent handlers only see FlueContext. */
 export interface FlueContextInternal extends FlueContext {
-	readonly runId: string;
+	readonly runId: string | undefined;
 	initializeCreatedAgent(agent: CreatedAgent, payload: unknown, options?: AgentHarnessOptions): Promise<FlueHarness>;
 	emitEvent(event: FlueEvent): FlueEvent;
 	subscribeEvent(callback: FlueEventCallback): () => void;
@@ -60,7 +60,7 @@ export function createFlueContext(config: FlueContextConfig): FlueContextInterna
 	const emitEvent = (event: FlueEvent): FlueEvent => {
 		const decorated: FlueEvent = {
 			...event,
-			runId: config.runId,
+			...(config.runId === undefined ? {} : { runId: config.runId }),
 			eventIndex: eventIndex++,
 			timestamp: new Date().toISOString(),
 		};

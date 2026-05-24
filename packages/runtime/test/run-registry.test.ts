@@ -289,7 +289,8 @@ describe('run store persistence sizing', () => {
 		const runSubscribers = createRunSubscriberRegistry();
 		configureFlueRuntime({
 			target: 'node',
-			handlers: { hello: async () => ({ result: 'x'.repeat(300_000) }) },
+			manifest: { agents: [], workflows: [{ name: 'hello', channels: { http: true } }] },
+			workflowHandlers: { hello: async () => ({ result: 'x'.repeat(300_000) }) },
 			createContext: (id, runId, payload, req) =>
 				createFlueContext({
 					id,
@@ -308,7 +309,7 @@ describe('run store persistence sizing', () => {
 		const app = new Hono();
 		app.route('/', flue());
 		const res = await app.fetch(
-			new Request('http://localhost/agents/hello/inst-1', {
+			new Request('http://localhost/workflows/hello?wait=result', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
 				body: JSON.stringify({}),
@@ -325,7 +326,8 @@ describe('run store persistence sizing', () => {
 		const runSubscribers = createRunSubscriberRegistry();
 		configureFlueRuntime({
 			target: 'node',
-			handlers: {
+			manifest: { agents: [], workflows: [{ name: 'hello', channels: { http: true } }] },
+			workflowHandlers: {
 				hello: async (ctx) => {
 					ctx.log.info('x'.repeat(300_000));
 					return { ok: true };
@@ -349,7 +351,7 @@ describe('run store persistence sizing', () => {
 		const app = new Hono();
 		app.route('/', flue());
 		const res = await app.fetch(
-			new Request('http://localhost/agents/hello/inst-1', {
+			new Request('http://localhost/workflows/hello?wait=result', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
 				body: JSON.stringify({}),
@@ -366,7 +368,8 @@ describe('run store persistence sizing', () => {
 		const runSubscribers = createRunSubscriberRegistry();
 		configureFlueRuntime({
 			target: 'node',
-			handlers: {
+			manifest: { agents: [], workflows: [{ name: 'hello', channels: { http: true } }] },
+			workflowHandlers: {
 				hello: async () => {
 					throw new Error('x'.repeat(300_000));
 				},
@@ -389,7 +392,7 @@ describe('run store persistence sizing', () => {
 		const app = new Hono();
 		app.route('/', flue());
 		const res = await app.fetch(
-			new Request('http://localhost/agents/hello/inst-1', {
+			new Request('http://localhost/workflows/hello?wait=result', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
 				body: JSON.stringify({}),
@@ -629,14 +632,15 @@ describe('POST /workflows/:name routes via flue()', () => {
 });
 
 describe('Bare /runs/:runId routes via flue()', () => {
-	it('resolves a registry pointer and serves the run record / events / stream', async () => {
+	it('resolves a workflow run pointer and serves the record / events / stream', async () => {
 		const runStore = new InMemoryRunStore();
 		const runRegistry = new InMemoryRunRegistry();
 		const runSubscribers = createRunSubscriberRegistry();
 
 		configureFlueRuntime({
 			target: 'node',
-			handlers: {
+			manifest: { agents: [], workflows: [{ name: 'hello', channels: { http: true } }] },
+			workflowHandlers: {
 				hello: async (_ctx) => ({ greeting: 'hi' }),
 			},
 			createContext: (id, runId, payload, req) =>
@@ -664,7 +668,7 @@ describe('Bare /runs/:runId routes via flue()', () => {
 		app.route('/', flue());
 
 		const invoke = await app.fetch(
-			new Request('http://localhost/agents/hello/inst-1', {
+			new Request('http://localhost/workflows/hello?wait=result', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
 				body: JSON.stringify({}),
@@ -674,27 +678,20 @@ describe('Bare /runs/:runId routes via flue()', () => {
 		const invokeBody = (await invoke.json()) as { _meta?: { runId?: string } };
 		const runId = invokeBody._meta?.runId;
 		expect(typeof runId).toBe('string');
-		expect(runId?.startsWith('run_')).toBe(true);
+		expect(runId?.startsWith('workflow:hello:')).toBe(true);
 
 		const bare = await app.fetch(new Request(`http://localhost/runs/${runId}`));
 		expect(bare.status).toBe(200);
 		const bareBody = (await bare.json()) as {
 			runId: string;
-			agentName: string;
-			instanceId: string;
+			owner: { kind: string; workflowName: string; instanceId: string };
 			status: string;
 			payload: unknown;
 		};
 		expect(bareBody.runId).toBe(runId);
-		expect(bareBody.agentName).toBe('hello');
-		expect(bareBody.instanceId).toBe('inst-1');
+		expect(bareBody.owner).toEqual({ kind: 'workflow', workflowName: 'hello', instanceId: runId });
 		expect(bareBody.status).toBe('completed');
 		expect(bareBody.payload).toEqual({});
-
-		const legacy = await app.fetch(
-			new Request(`http://localhost/agents/hello/inst-1/runs/${runId}`),
-		);
-		expect(legacy.status).toBe(404);
 
 		const missing = await app.fetch(new Request('http://localhost/runs/run_does_not_exist'));
 		expect(missing.status).toBe(404);
@@ -847,7 +844,8 @@ describe('Bare /runs/:runId routes via flue()', () => {
 
 		configureFlueRuntime({
 			target: 'node',
-			handlers: {
+			manifest: { agents: [], workflows: [{ name: 'hello', channels: { http: true } }] },
+			workflowHandlers: {
 				hello: async (ctx) => {
 					ctx.log.info('before return');
 					return { ok: true };
@@ -878,7 +876,7 @@ describe('Bare /runs/:runId routes via flue()', () => {
 		app.route('/', flue());
 
 		const invoke = await app.fetch(
-			new Request('http://localhost/agents/hello/inst-1', {
+			new Request('http://localhost/workflows/hello?wait=result', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
 				body: JSON.stringify({}),
@@ -924,7 +922,7 @@ class SlowNonTerminalRunStore implements RunStore {
 }
 
 describe('admin() routes', () => {
-	it('lists agents, instances, runs, and exposes an admin OpenAPI spec', async () => {
+	it('lists agents and workflow runs and exposes an admin OpenAPI spec', async () => {
 		const runStore = new InMemoryRunStore();
 		const runRegistry = new InMemoryRunRegistry();
 		const runSubscribers = createRunSubscriberRegistry();
@@ -937,8 +935,9 @@ describe('admin() routes', () => {
 					{ name: 'hello', channels: {}, created: false },
 					{ name: 'offline', channels: {}, created: false },
 				],
+				workflows: [{ name: 'daily-report', channels: { http: true } }],
 			},
-			handlers: { hello: async () => ({ ok: true }) },
+			workflowHandlers: { 'daily-report': async () => ({ ok: true }) },
 			createContext: (id, runId, payload, req) =>
 				createFlueContext({
 					id,
@@ -965,7 +964,7 @@ describe('admin() routes', () => {
 		app.route('/admin', admin());
 
 		const invoke = await app.fetch(
-			new Request('http://localhost/agents/hello/inst-1', {
+			new Request('http://localhost/workflows/daily-report?wait=result', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
 				body: JSON.stringify({}),
@@ -984,17 +983,14 @@ describe('admin() routes', () => {
 
 		const instances = await app.fetch(new Request('http://localhost/admin/agents/hello/instances'));
 		expect(instances.status).toBe(200);
-		expect((await instances.json()) as unknown).toMatchObject({
-			items: [{ agentName: 'hello', instanceId: 'inst-1' }],
-		});
+		expect((await instances.json()) as unknown).toMatchObject({ items: [] });
 
 		const instanceRuns = await app.fetch(
 			new Request('http://localhost/admin/agents/hello/instances/inst-1/runs?status=completed'),
 		);
-		expect(instanceRuns.status).toBe(200);
-		expect(((await instanceRuns.json()) as { items: { runId: string }[] }).items[0]?.runId).toBe(runId);
+		expect(instanceRuns.status).toBe(404);
 
-		const runs = await app.fetch(new Request('http://localhost/admin/runs?agentName=hello'));
+		const runs = await app.fetch(new Request('http://localhost/admin/runs?workflowName=daily-report'));
 		expect(runs.status).toBe(200);
 		expect(((await runs.json()) as { items: { runId: string }[] }).items[0]?.runId).toBe(runId);
 
@@ -1025,10 +1021,9 @@ describe('admin() routes', () => {
 				recordRunStart: async () => {},
 				recordRunEnd: async () => {},
 				lookupRun: async () => ({
-					runId: 'run_cf',
-					owner: { kind: 'agent', agentName: 'hello', instanceId: 'inst-1' },
-					agentName: 'hello',
-					instanceId: 'inst-1',
+					runId: 'workflow:job:cf',
+					owner: { kind: 'workflow', workflowName: 'job', instanceId: 'workflow:job:cf' },
+					instanceId: 'workflow:job:cf',
 					status: 'completed',
 					startedAt: '2026-01-01T00:00:00.000Z',
 				}),
@@ -1060,10 +1055,9 @@ describe('admin() routes', () => {
 				recordRunStart: async () => {},
 				recordRunEnd: async () => {},
 				lookupRun: async () => ({
-					runId: 'run_cf',
-					owner: { kind: 'agent', agentName: 'hello', instanceId: 'inst-1' },
-					agentName: 'hello',
-					instanceId: 'inst-1',
+					runId: 'workflow:job:cf',
+					owner: { kind: 'workflow', workflowName: 'job', instanceId: 'workflow:job:cf' },
+					instanceId: 'workflow:job:cf',
 					status: 'completed',
 					startedAt: '2026-01-01T00:00:00.000Z',
 				}),

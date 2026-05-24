@@ -16,12 +16,12 @@ export type WebSocketFactory = (url: string) => WebSocketLike;
 
 export interface SocketInvokeResult {
 	result: unknown;
-	runId: string;
+	runId?: string;
 }
 
 export interface SocketEventContext {
 	requestId: string;
-	runId: string;
+	runId?: string;
 }
 
 export type SocketEventListener = (event: FlueEvent, context: SocketEventContext) => void;
@@ -160,13 +160,13 @@ class ProtocolSocket {
 			case 'started':
 				return;
 			case 'event':
-				for (const listener of this.listeners) listener(message.event, { requestId: message.requestId, runId: message.runId });
+				for (const listener of this.listeners) listener(message.event, { requestId: message.requestId, ...(message.runId === undefined ? {} : { runId: message.runId }) });
 				return;
 			case 'result': {
 				const pending = this.pendingRequests.get(message.requestId);
 				if (!pending) return;
 				this.pendingRequests.delete(message.requestId);
-				pending.resolve({ result: message.result, runId: message.runId });
+				pending.resolve({ result: message.result, ...(message.runId === undefined ? {} : { runId: message.runId }) });
 				return;
 			}
 			case 'error': {
@@ -324,12 +324,12 @@ function parseServerMessage(value: string): WebSocketServerMessage | undefined {
 			return undefined;
 		case 'started':
 		case 'result':
-			if (typeof parsed.requestId === 'string' && typeof parsed.runId === 'string') return parsed as unknown as WebSocketServerMessage;
+			if (typeof parsed.requestId === 'string' && (parsed.runId === undefined || typeof parsed.runId === 'string')) return parsed as unknown as WebSocketServerMessage;
 			return undefined;
 		case 'event':
 			if (
 				typeof parsed.requestId === 'string' &&
-				typeof parsed.runId === 'string' &&
+				(parsed.runId === undefined || typeof parsed.runId === 'string') &&
 				isRecord(parsed.event) &&
 				typeof parsed.event.type === 'string'
 			) {

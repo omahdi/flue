@@ -44,8 +44,8 @@ import {
 	RunEventsQuerySchema,
 	RunIdParamSchema,
 	RunRecordSchema,
-	WebhookInvocationResponseSchema,
 	WorkflowAdmissionResponseSchema,
+	WorkflowInvocationResponseSchema,
 } from './schemas.ts';
 
 export interface FlueRuntime {
@@ -363,7 +363,7 @@ function workflowRouteSpec() {
 				description: 'Workflow result envelope or server-sent events stream, depending on the requested mode.',
 				content: {
 					'application/json': {
-						schema: resolver(AgentInvocationResponseSchema),
+						schema: resolver(WorkflowInvocationResponseSchema),
 					},
 					'text/event-stream': {
 						schema: { type: 'string', description: 'SSE-framed FlueEvent values.' },
@@ -383,7 +383,7 @@ function agentRouteSpec() {
 		operationId: 'invokeAgent',
 		summary: 'Invoke an agent instance',
 		description:
-			'Invokes the named agent instance. The request body is user-defined by the target agent.',
+			'Prompts the named agent instance as an attached interaction. Use dispatch(...) from application code for asynchronous delivery.',
 		requestBody: {
 			required: false,
 			content: {
@@ -397,11 +397,10 @@ function agentRouteSpec() {
 			},
 		},
 		responses: {
-			200: jsonResponse(AgentInvocationResponseSchema, 'Synchronous invocation result.'),
-			202: jsonResponse(WebhookInvocationResponseSchema, 'Webhook invocation accepted.'),
+			200: jsonResponse(AgentInvocationResponseSchema, 'Attached prompt result.'),
 			...errorResponses(),
 		},
-		'x-flue-invocation-modes': ['sync', 'webhook', 'stream'],
+		'x-flue-invocation-modes': ['sync', 'stream'],
 		'x-flue-user-defined': true,
 	};
 }

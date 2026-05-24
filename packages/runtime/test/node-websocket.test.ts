@@ -19,6 +19,7 @@ describe('Node WebSocket transport', () => {
 		socket.send(JSON.stringify({ version: 1, type: 'prompt', requestId: 'one', message: 'first', session: 'chat' }));
 		const first = await waitForMessage(messages, (message) => message.type === 'result' && message.requestId === 'one');
 		expect(first).toMatchObject({ result: { message: 'first', session: 'chat' } });
+		expect(first).not.toHaveProperty('runId');
 
 		socket.send(JSON.stringify({ version: 1, type: 'prompt', requestId: 'two', message: 'second' }));
 		const second = await waitForMessage(messages, (message) => message.type === 'result' && message.requestId === 'two');

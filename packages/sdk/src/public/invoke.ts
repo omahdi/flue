@@ -4,11 +4,9 @@ import { readSse } from './stream.ts';
 
 export type InvokeOptions =
 	| { mode: 'sync'; payload?: unknown; signal?: AbortSignal }
-	| { mode: 'webhook'; payload?: unknown; signal?: AbortSignal }
 	| { mode: 'stream'; payload?: unknown; signal?: AbortSignal };
 
-export type SyncInvokeResult = { result: unknown; runId: string };
-export type WebhookInvokeResult = { runId: string };
+export type SyncInvokeResult = { result: unknown };
 
 export function invokeAgent(
 	http: HttpClient,
@@ -26,29 +24,18 @@ export function invokeAgent(
 	http: HttpClient,
 	name: string,
 	id: string,
-	options: { mode: 'webhook'; payload?: unknown; signal?: AbortSignal },
-): Promise<WebhookInvokeResult>;
-export function invokeAgent(
-	http: HttpClient,
-	name: string,
-	id: string,
 	options: InvokeOptions,
-): Promise<SyncInvokeResult | WebhookInvokeResult> | AsyncIterable<FlueEvent> {
+): Promise<SyncInvokeResult> | AsyncIterable<FlueEvent> {
 	const path = `/agents/${encodeURIComponent(name)}/${encodeURIComponent(id)}`;
 	if (options.mode === 'stream') return invokeStream(http, path, options);
 	return http
-		.json<{ result?: unknown; _meta?: { runId?: string }; runId?: string }>({
+		.json<{ result?: unknown }>({
 			method: 'POST',
 			path,
 			body: options.payload ?? {},
-			headers: options.mode === 'webhook' ? { 'x-webhook': 'true' } : undefined,
 			signal: options.signal,
 		})
-		.then((body) => {
-			const runId = body._meta?.runId ?? body.runId;
-			if (!runId) throw new Error('Flue response did not include a runId.');
-			return options.mode === 'webhook' ? { runId } : { result: body.result, runId };
-		});
+		.then((body) => ({ result: body.result }));
 }
 
 async function* invokeStream(

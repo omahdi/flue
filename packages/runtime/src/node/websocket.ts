@@ -11,8 +11,8 @@ import type {
 import type { FlueManifest, FlueRuntime } from '../runtime/flue-app.ts';
 import { registeredAgentsForChannel, registeredWorkflowsForChannel } from '../runtime/flue-app.ts';
 import type { AgentHandler, CreateContextFn, RunHandlerFn, WorkflowHandler } from '../runtime/handle-agent.ts';
-import { invokeAttached } from '../runtime/handle-agent.ts';
-import { generateRunId, generateWorkflowRunId } from '../runtime/ids.ts';
+import { invokeAttached, invokeDirectAttached } from '../runtime/handle-agent.ts';
+import { generateWorkflowRunId } from '../runtime/ids.ts';
 import type { RunRegistry } from '../runtime/run-registry.ts';
 import {
 	createWebSocketErrorMessage,
@@ -147,13 +147,11 @@ async function invokeAgentPrompt(
 	message: Extract<AgentWebSocketClientMessage, { type: 'prompt' }>,
 	options: NodeWebSocketTransportOptions,
 ): Promise<void> {
-	const runId = generateRunId();
 	let didStart = false;
 	try {
-		const invocation = await invokeAttached({
-			owner: { kind: 'agent', agentName: target.name, instanceId: target.id },
+		const result = await invokeDirectAttached({
+			agentName: target.name,
 			id: target.id,
-			runId,
 			payload: { message: message.message, session: message.session },
 			request,
 			handler: target.handler,
@@ -162,18 +160,15 @@ async function invokeAgentPrompt(
 			onEvent: (event) => {
 				if (!didStart) {
 					didStart = true;
-					send(socket, { version: 1, type: 'started', requestId: message.requestId, runId });
+					send(socket, { version: 1, type: 'started', requestId: message.requestId });
 				}
-				send(socket, { version: 1, type: 'event', requestId: message.requestId, runId, event });
+				send(socket, { version: 1, type: 'event', requestId: message.requestId, event });
 			},
 			emitIdleOnComplete: true,
-			runStore: options.runStore,
-			runSubscribers: options.runSubscribers,
-			runRegistry: options.runRegistry,
 		});
-		send(socket, { version: 1, type: 'result', requestId: message.requestId, runId, result: invocation.result ?? null });
+		send(socket, { version: 1, type: 'result', requestId: message.requestId, result: result ?? null });
 	} catch (error) {
-		sendError(socket, error, message.requestId, didStart ? runId : undefined);
+		sendError(socket, error, message.requestId);
 	}
 }
 

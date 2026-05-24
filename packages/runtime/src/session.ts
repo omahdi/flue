@@ -49,7 +49,6 @@ import type {
 	BranchSummaryEntry,
 	CallHandle,
 	CompactionEntry,
-	DirectMessageMetadata,
 	DispatchMessageMetadata,
 	FlueEvent,
 	FlueEventCallback,
@@ -283,7 +282,6 @@ export class SessionHistory {
 		message: AgentMessage,
 		source?: MessageSource,
 		dispatch?: DispatchMessageMetadata,
-		direct?: DirectMessageMetadata,
 	): string {
 		const entry: MessageEntry = {
 			type: 'message',
@@ -294,15 +292,8 @@ export class SessionHistory {
 			source,
 		};
 		if (dispatch) entry.dispatch = dispatch;
-		if (direct) entry.direct = direct;
 		this.appendEntry(entry);
 		return entry.id;
-	}
-
-	findDirectInput(runId: string): MessageEntry | undefined {
-		return this.getActivePath().find(
-			(entry): entry is MessageEntry => entry.type === 'message' && entry.direct?.runId === runId,
-		);
 	}
 
 	findDispatchInput(dispatchId: string): MessageEntry | undefined {
@@ -539,12 +530,17 @@ export class Session implements FlueSession {
 		this.harness.subscribe(async (event) => {
 			switch (event.type) {
 				case 'agent_start':
-					// pi-agent-core lifecycle event; not part of Flue's wire vocabulary.
+					this.emit({ type: 'agent_start' });
 					break;
 				case 'turn_start':
 					this.turnStartTime = Date.now();
+					this.emit({ type: 'turn_start' });
+					break;
+				case 'message_start':
+					this.emit({ type: 'message_start', message: event.message });
 					break;
 				case 'message_update': {
+					this.emit({ type: 'message_update', message: event.message, assistantMessageEvent: event.assistantMessageEvent });
 					const aEvent = event.assistantMessageEvent;
 					if (aEvent.type === 'text_delta') {
 						this.emit({ type: 'text_delta', text: aEvent.delta });
@@ -557,16 +553,19 @@ export class Session implements FlueSession {
 					}
 					break;
 				}
+				case 'message_end':
+					this.emit({ type: 'message_end', message: event.message });
+					break;
 				case 'tool_execution_start':
 					this.toolStartTimes.set(event.toolCallId, Date.now());
-					this.emit({
-						type: 'tool_start',
-						toolName: event.toolName,
-						toolCallId: event.toolCallId,
-						args: event.args,
-					});
+					this.emit({ type: 'tool_execution_start', toolName: event.toolName, toolCallId: event.toolCallId, args: event.args });
+					this.emit({ type: 'tool_start', toolName: event.toolName, toolCallId: event.toolCallId, args: event.args });
+					break;
+				case 'tool_execution_update':
+					this.emit({ type: 'tool_execution_update', toolName: event.toolName, toolCallId: event.toolCallId, args: event.args, partialResult: event.partialResult });
 					break;
 				case 'tool_execution_end':
+					this.emit({ type: 'tool_execution_end', toolName: event.toolName, toolCallId: event.toolCallId, result: event.result, isError: event.isError });
 					this.emit({
 						type: 'tool_call',
 						toolName: event.toolName,
@@ -578,6 +577,7 @@ export class Session implements FlueSession {
 					this.toolStartTimes.delete(event.toolCallId);
 					break;
 				case 'turn_end': {
+					this.emit({ type: 'turn_end', message: event.message, toolResults: event.toolResults });
 					const message = event.message;
 					const assistant = message.role === 'assistant' ? (message as AssistantMessage) : undefined;
 					this.emit({
@@ -593,6 +593,7 @@ export class Session implements FlueSession {
 					break;
 				}
 				case 'agent_end':
+					this.emit({ type: 'agent_end', messages: event.messages });
 					break;
 			}
 		});
@@ -648,9 +649,20 @@ export class Session implements FlueSession {
 		);
 	}
 
-	processDirectInput(input: { runId: string; message: string }): CallHandle<PromptResponse> {
+	processDirectInput(input: { message: string }): CallHandle<PromptResponse> {
 		return createCallHandle(undefined, (signal) =>
-			this.runOperation('prompt', signal, () => this.runPersistedDirectInput(input)),
+			this.runOperation('prompt', signal, () => this.runPromptCall({
+				promptText: input.message,
+				schema: undefined,
+				tools: undefined,
+				model: undefined,
+				thinkingLevel: undefined,
+				images: undefined,
+				source: 'prompt',
+				errorLabel: 'prompt',
+				callSite: 'this direct input',
+				signal,
+			}) as Promise<PromptResponse>),
 		);
 	}
 
@@ -1637,23 +1649,6 @@ export class Session implements FlueSession {
 			}
 		}
 		return undefined;
-	}
-
-	private async runPersistedDirectInput(input: { runId: string; message: string }): Promise<PromptResponse> {
-		return this.runPersistedContextInput({
-			findInput: () => this.history.findDirectInput(input.runId),
-			persistInput: () => this.history.appendMessage(
-				createUserContextMessage(input.message, new Date().toISOString()),
-				'prompt',
-				undefined,
-				{ runId: input.runId },
-			),
-			errorLabel: 'prompt',
-			outputSource: 'prompt',
-			callSite: 'this direct input',
-			persistenceError: '[flue] Failed to persist direct agent input.',
-			recoveryError: '[flue] Cannot recover direct agent input after the session has advanced.',
-		});
 	}
 
 	private async runPersistedDispatchInput(input: DispatchInput): Promise<PromptResponse> {

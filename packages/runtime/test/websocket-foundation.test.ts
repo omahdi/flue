@@ -9,6 +9,7 @@ import {
 	failRecoveredRun,
 	InMemorySessionStore,
 	invokeAttached,
+	invokeDirectAttached,
 	recoverAgentRun,
 	reserveRecoveredAgentSession,
 	registeredAgentsForChannel,
@@ -303,61 +304,43 @@ describe('WebSocket transport foundation', () => {
 			release = resolve;
 		});
 		const base = {
-			owner: { kind: 'agent' as const, agentName: 'assistant', instanceId: 'user-1' },
+			agentName: 'assistant',
 			id: 'user-1',
 			payload: { message: 'hello', session: 'chat' },
 			request: new Request('http://localhost/agents/assistant/user-1', { method: 'POST' }),
 			createContext,
 		};
-		const first = invokeAttached({
+		const first = invokeDirectAttached({
 			...base,
-			runId: 'run_first',
 			handler: async () => {
 				await pending;
 				return null;
 			},
 		});
-		await expect(invokeAttached({
+		await expect(invokeDirectAttached({
 			...base,
-			runId: 'run_second',
 			handler: async () => null,
 		})).rejects.toMatchObject({ details: 'This agent session already has an active prompt.' });
 		release?.();
 		await first;
 	});
 
-	it('rejects HTTP webhook prompts while the same agent session is active', async () => {
-		let release: (() => void) | undefined;
-		const pending = new Promise<void>((resolve) => {
-			release = resolve;
-		});
+	it('rejects detached HTTP webhook mode for direct agent prompts', async () => {
 		configureFlueRuntime({
 			target: 'node',
 			manifest: { agents: [{ name: 'assistant', channels: { http: true }, created: true }] },
-			handlers: {
-				assistant: async () => {
-					await pending;
-					return null;
-				},
-			},
+			handlers: { assistant: async () => null },
 			createContext,
 		});
 		const app = new Hono();
 		app.route('/', flue());
-		const first = await app.fetch(new Request('http://localhost/agents/assistant/user-1', {
+		const response = await app.fetch(new Request('http://localhost/agents/assistant/user-1', {
 			method: 'POST',
 			headers: { 'content-type': 'application/json', 'x-webhook': 'true' },
 			body: JSON.stringify({ message: 'first', session: 'chat' }),
 		}));
-		expect(first.status).toBe(202);
-		const second = await app.fetch(new Request('http://localhost/agents/assistant/user-1', {
-			method: 'POST',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({ message: 'second', session: 'chat' }),
-		}));
-		expect(second.status).toBe(400);
-		expect(await second.json()).toMatchObject({ error: { type: 'invalid_request', details: 'This agent session already has an active prompt.' } });
-		release?.();
+		expect(response.status).toBe(400);
+		expect(await response.json()).toMatchObject({ error: { type: 'invalid_request', details: 'Direct agent prompts are attached interactions. Use dispatch(...) for asynchronous delivery.' } });
 	});
 
 	it('continues a recovered webhook run without duplicating its run start', async () => {
@@ -664,7 +647,7 @@ describe('WebSocket transport foundation', () => {
 	});
 });
 
-function createContext(id: string, runId: string, payload: unknown, req: Request, initialEventIndex?: number) {
+function createContext(id: string, runId: string | undefined, payload: unknown, req: Request, initialEventIndex?: number) {
 	return createFlueContext({
 		id,
 		runId,

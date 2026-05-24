@@ -126,7 +126,7 @@ describe('global dispatch', () => {
 		expect(sessions).toEqual(['case:1']);
 		expect(processed).toHaveLength(1);
 		expect(processed[0]?.input).toEqual({ type: 'flagged' });
-		expect(events).toEqual(['run_start', 'run_end']);
+		expect(events).toEqual([]);
 	});
 
 	it('admits a durable dispatch only after storing its recoverable run payload', async () => {
@@ -249,7 +249,7 @@ function fakeDispatchHarness(sessions: string[], processed: DispatchInput[]): Fl
 	};
 }
 
-function createTestContext(id: string, runId: string, payload: unknown, req: Request, initialEventIndex?: number) {
+function createTestContext(id: string, runId: string | undefined, payload: unknown, req: Request, initialEventIndex?: number) {
 	return createFlueContext({ id, runId, payload, env: {}, req, initialEventIndex, agentConfig: testAgentConfig(), createDefaultEnv: async () => fakeEnv(), defaultStore: new InMemorySessionStore() });
 }
 

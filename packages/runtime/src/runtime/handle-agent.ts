@@ -4,7 +4,7 @@ import type { FlueContextInternal } from '../client.ts';
 import { InvalidRequestError, parseJsonBody, RunEventTooLargeError, toHttpResponse } from '../errors.ts';
 import type { CreatedAgent, DirectAgentPayload, DispatchReceipt, FlueEvent, FlueEventCallback } from '../types.ts';
 import type { DispatchInput, DispatchProcessor } from './dispatch-queue.ts';
-import { generateRunId, generateWorkflowRunId } from './ids.ts';
+import { generateWorkflowRunId } from './ids.ts';
 import type { RunOwner, RunRegistry } from './run-registry.ts';
 import type { RunStore } from './run-store.ts';
 import type { RunSubscriberRegistry } from './run-subscribers.ts';
@@ -15,7 +15,7 @@ export type CreatedAgentHandler = CreatedAgent;
 export type WorkflowHandler = (ctx: FlueContextInternal) => unknown | Promise<unknown>;
 
 interface DirectRequestSession {
-	processDirectInput(input: { runId: string; message: string }): PromiseLike<unknown>;
+	processDirectInput(input: { message: string }): PromiseLike<unknown>;
 }
 
 interface DispatchSession {
@@ -33,18 +33,8 @@ export function createAgentDispatchProcessor(options: {
 		async process(input) {
 			const agent = options.agents[input.targetAgent];
 			if (!agent) throw new Error(`[flue] dispatch target agent "${input.targetAgent}" has no created agent.`);
-			const lifecycle = await createRunLifecycle({
-				owner: dispatchOwner(input),
-				id: input.id,
-				runId: generateRunId(),
-				payload: input,
-				request: dispatchRequest(),
-				createContext: options.createContext,
-				runStore: options.runStore,
-				runSubscribers: options.runSubscribers,
-				runRegistry: options.runRegistry,
-			});
-			await withRunLifecycle(lifecycle, () => createDispatchAgentHandler(agent, input)(lifecycle.ctx));
+			const ctx = options.createContext(input.id, undefined, input, dispatchRequest());
+			await createDispatchAgentHandler(agent, input)(ctx);
 		},
 	};
 }
@@ -140,7 +130,7 @@ export function createDirectAgentHandler(agent: CreatedAgentHandler): AgentHandl
 		if (!isDirectRequestSession(session)) {
 			throw new Error('[flue] Internal session does not support direct input processing.');
 		}
-		return session.processDirectInput({ runId: ctx.runId, message: payload.message });
+		return session.processDirectInput({ message: payload.message });
 	};
 }
 
@@ -170,7 +160,7 @@ function parseDirectAgentPayload(payload: unknown): DirectAgentPayload {
  */
 export type CreateContextFn = (
 	id: string,
-	runId: string,
+	runId: string | undefined,
 	payload: unknown,
 	request: Request,
 	initialEventIndex?: number,
@@ -284,76 +274,29 @@ export interface HandleWorkflowOptions {
  * already been validated as a POST against a registered agent.
  */
 export async function handleAgentRequest(opts: HandleAgentOptions): Promise<Response> {
-	const { request, agentName, id, handler, createContext, runStore, runSubscribers, runRegistry } =
-		opts;
-	const startWebhook = opts.startWebhook ?? defaultStartWebhook;
+	const { request, agentName, id, handler, createContext } = opts;
 	const runHandler = opts.runHandler ?? defaultRunHandler;
-	const runId = generateRunId();
 
 	try {
-		// Parse the request body. Throws on invalid Content-Type or malformed
-		// JSON; returns {} for genuinely empty bodies (so no-payload agents
-		// still work).
 		const payload = await parseJsonBody(request);
-
-		const accept = request.headers.get('accept') || '';
-		const isWebhook = request.headers.get('x-webhook') === 'true';
-		const isSSE = accept.includes('text/event-stream') && !isWebhook;
-
-		if (isWebhook) {
-			return runWebhookMode({
-				label: agentName,
-				owner: { kind: 'agent', agentName, instanceId: id },
-				id,
-				runId,
-				handler,
-				payload,
-				request,
-				createContext,
-				startWebhook,
-				runStore,
-				runSubscribers,
-				runRegistry,
-			});
+		if (request.headers.get('x-webhook') === 'true') {
+			throw new InvalidRequestError({ reason: 'Direct agent prompts are attached interactions. Use dispatch(...) for asynchronous delivery.' });
 		}
-
-		if (isSSE) {
-			return runSseMode({
-				label: agentName,
-				owner: { kind: 'agent', agentName, instanceId: id },
-				id,
-				runId,
-				handler,
-				payload,
-				request,
-				createContext,
-				runHandler,
-				runStore,
-				runSubscribers,
-				runRegistry,
-			});
-		}
-
-		return runSyncMode({
-			label: agentName,
-			owner: { kind: 'agent', agentName, instanceId: id },
+		const directOptions: DirectAttachedOptions = {
+			agentName,
 			id,
-			runId,
 			handler,
 			payload,
 			request,
 			createContext,
 			runHandler,
-			runStore,
-			runSubscribers,
-			runRegistry,
-		});
+		};
+		if ((request.headers.get('accept') || '').includes('text/event-stream')) {
+			return runDirectSseMode(directOptions);
+		}
+		return runDirectSyncMode(directOptions);
 	} catch (err) {
-		// toHttpResponse logs unknowns via flueLog.error — no extra console.error
-		// needed at this layer.
-		const response = toHttpResponse(err);
-		response.headers.set('X-Flue-Run-Id', runId);
-		return response;
+		return toHttpResponse(err);
 	}
 }
 
@@ -466,6 +409,18 @@ export interface InvokeAttachedOptions {
 	runSubscribers?: RunSubscriberRegistry;
 	runRegistry?: RunRegistry;
 	restartedFromRunId?: string;
+}
+
+export interface DirectAttachedOptions {
+	agentName: string;
+	id: string;
+	handler: AgentHandler;
+	payload: unknown;
+	request: Request;
+	createContext: CreateContextFn;
+	runHandler?: RunHandlerFn;
+	onEvent?: FlueEventCallback;
+	emitIdleOnComplete?: boolean;
 }
 
 export interface AttachedInvocationResult {
@@ -764,6 +719,75 @@ function nextEventIndex(events: FlueEvent[]): number {
  */
 export const SSE_HEARTBEAT_MS = 15_000;
 
+function runDirectSseMode(opts: DirectAttachedOptions): Response {
+	const { readable, writable } = new TransformStream();
+	const writer = writable.getWriter();
+	const encoder = new TextEncoder();
+	let closed = false;
+	const writeSSE = async (data: unknown, eventType: string): Promise<void> => {
+		if (closed) return;
+		const eventIndex = getEventIndex(data) ?? 0;
+		const lines = [`event: ${eventType}`, `id: ${eventIndex}`, `data: ${typeof data === 'string' ? data : JSON.stringify(data)}`, '', ''];
+		try {
+			await writer.write(encoder.encode(lines.join('\n')));
+		} catch {}
+	};
+	const heartbeat = setInterval(() => {
+		if (!closed) writer.write(encoder.encode(': heartbeat\n\n')).catch(() => {});
+	}, SSE_HEARTBEAT_MS);
+	(async () => {
+		try {
+			await invokeDirectAttached({ ...opts, onEvent: (event) => writeSSE(event, event.type), emitIdleOnComplete: true });
+		} catch (error) {
+			await writeSSE({ message: error instanceof Error ? error.message : String(error) }, 'error');
+		} finally {
+			clearInterval(heartbeat);
+			closed = true;
+			try {
+				await writer.close();
+			} catch {}
+		}
+	})();
+	return new Response(readable, {
+		headers: { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' },
+	});
+}
+
+async function runDirectSyncMode(opts: DirectAttachedOptions): Promise<Response> {
+	const result = await invokeDirectAttached(opts);
+	return new Response(JSON.stringify({ result: result === undefined ? null : result }), {
+		headers: { 'content-type': 'application/json' },
+	});
+}
+
+export async function invokeDirectAttached(opts: DirectAttachedOptions): Promise<unknown> {
+	const sessionLock = acquireDirectAgentSessionLock(opts.agentName, opts.id, opts.payload);
+	try {
+		const ctx = opts.createContext(opts.id, undefined, opts.payload, opts.request);
+		const runHandler = opts.runHandler ?? defaultRunHandler;
+		let didEmitIdle = false;
+		if (opts.onEvent || opts.emitIdleOnComplete) {
+			ctx.setEventCallback((event) => {
+				if (event.type === 'idle') didEmitIdle = true;
+				return opts.onEvent?.(event);
+			});
+		}
+		try {
+			return await runHandler(ctx, async (innerCtx) => {
+				try {
+					return await opts.handler(innerCtx);
+				} finally {
+					if (opts.emitIdleOnComplete && !didEmitIdle) innerCtx.emitEvent({ type: 'idle' });
+				}
+			});
+		} finally {
+			ctx.setEventCallback(undefined);
+		}
+	} finally {
+		sessionLock?.();
+	}
+}
+
 function runSseMode(opts: ModeOptions): Response {
 	const { runId } = opts;
 
@@ -884,9 +908,13 @@ async function invokeAttachedUnlocked(opts: InvokeAttachedOptions): Promise<Atta
 
 function acquireAgentSessionLock(opts: Pick<InvokeAttachedOptions, 'owner' | 'payload'>): (() => void) | undefined {
 	if (opts.owner.kind !== 'agent') return undefined;
-	const payload = opts.payload as { session?: unknown } | null;
+	return acquireDirectAgentSessionLock(opts.owner.agentName, opts.owner.instanceId, opts.payload);
+}
+
+function acquireDirectAgentSessionLock(agentName: string, instanceId: string, input: unknown): (() => void) | undefined {
+	const payload = input as { session?: unknown } | null;
 	const session = typeof payload?.session === 'string' && payload.session.trim() !== '' ? payload.session : 'default';
-	const key = `${opts.owner.agentName}\0${opts.owner.instanceId}\0${session}`;
+	const key = `${agentName}\0${instanceId}\0${session}`;
 	if (activeAttachedAgentSessions.has(key)) {
 		throw new InvalidRequestError({ reason: 'This agent session already has an active prompt.' });
 	}

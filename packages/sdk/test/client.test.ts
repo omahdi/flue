@@ -3,19 +3,19 @@ import { createFlueClient } from '../src/index.ts';
 import { readSse } from '../src/public/stream.ts';
 
 describe('createFlueClient', () => {
-	it('sends sync invocation requests and returns result/runId', async () => {
+	it('sends sync agent prompt requests without run identity', async () => {
 		const seen: Request[] = [];
 		const client = createFlueClient({
 			baseUrl: 'https://flue.test',
 			fetch: async (input, init) => {
 				seen.push(new Request(input, init));
-				return Response.json({ result: { ok: true }, _meta: { runId: 'run_1' } });
+				return Response.json({ result: { ok: true } });
 			},
 		});
 
 		await expect(
 			client.agents.invoke('hello', 'inst-1', { mode: 'sync', payload: { name: 'Ada' } }),
-		).resolves.toEqual({ result: { ok: true }, runId: 'run_1' });
+		).resolves.toEqual({ result: { ok: true } });
 		expect(seen).toHaveLength(1);
 		expect(new URL(seen[0]?.url ?? '').pathname).toBe('/agents/hello/inst-1');
 		expect(seen[0]?.method).toBe('POST');

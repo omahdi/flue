@@ -19,8 +19,12 @@ describe('Cloudflare WebSocket transport', () => {
 		await messageCloudflareAgentWebSocket(connection, JSON.stringify({ version: 1, type: 'prompt', requestId: 'two', message: 'second' }), options);
 
 		expect(connection.messages[0]).toMatchObject({ type: 'ready', target: 'agent', name: 'assistant', instanceId: 'instance-1' });
-		expect(connection.messages.find((message) => message.type === 'result' && message.requestId === 'one')).toMatchObject({ result: { message: 'first', session: 'chat' } });
-		expect(connection.messages.find((message) => message.type === 'result' && message.requestId === 'two')).toMatchObject({ result: { message: 'second' } });
+		const first = connection.messages.find((message) => message.type === 'result' && message.requestId === 'one');
+		const second = connection.messages.find((message) => message.type === 'result' && message.requestId === 'two');
+		expect(first).toMatchObject({ result: { message: 'first', session: 'chat' } });
+		expect(first).not.toHaveProperty('runId');
+		expect(second).toMatchObject({ result: { message: 'second' } });
+		expect(second).not.toHaveProperty('runId');
 		expect(connection.closed).toBeUndefined();
 	});
 
@@ -109,7 +113,7 @@ function agentOptions() {
 	};
 }
 
-function createContext(id: string, runId: string, payload: unknown, req: Request) {
+function createContext(id: string, runId: string | undefined, payload: unknown, req: Request) {
 	return createFlueContext({
 		id,
 		runId,

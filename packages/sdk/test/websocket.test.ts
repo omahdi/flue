@@ -65,12 +65,12 @@ describe('WebSocket clients', () => {
 		await Promise.resolve();
 		const request = JSON.parse(connection?.socket.sent[0] ?? '{}') as { requestId: string };
 		expect(request).toMatchObject({ version: 1, type: 'prompt', message: 'Hello', session: 'chat' });
-		connection?.socket.message({ version: 1, type: 'started', requestId: request.requestId, runId: 'run_1' });
-		connection?.socket.message({ version: 1, type: 'event', requestId: request.requestId, runId: 'run_1', event: { type: 'text_delta', text: 'Hi' } });
-		connection?.socket.message({ version: 1, type: 'result', requestId: request.requestId, runId: 'run_1', result: 'done' });
+		connection?.socket.message({ version: 1, type: 'started', requestId: request.requestId });
+		connection?.socket.message({ version: 1, type: 'event', requestId: request.requestId, event: { type: 'text_delta', text: 'Hi' } });
+		connection?.socket.message({ version: 1, type: 'result', requestId: request.requestId, result: 'done' });
 
-		await expect(pending).resolves.toEqual({ result: 'done', runId: 'run_1' });
-		expect(events).toEqual([{ event: { type: 'text_delta', text: 'Hi' }, context: { requestId: request.requestId, runId: 'run_1' } }]);
+		await expect(pending).resolves.toEqual({ result: 'done' });
+		expect(events).toEqual([{ event: { type: 'text_delta', text: 'Hi' }, context: { requestId: request.requestId } }]);
 	});
 
 	it('supports sequential agent prompts and ping on one socket', async () => {
@@ -82,14 +82,14 @@ describe('WebSocket clients', () => {
 		const first = agent.prompt('first');
 		await Promise.resolve();
 		const firstRequest = JSON.parse(socket?.sent[0] ?? '{}') as { requestId: string };
-		socket?.message({ version: 1, type: 'result', requestId: firstRequest.requestId, runId: 'run_1', result: 1 });
-		await expect(first).resolves.toEqual({ result: 1, runId: 'run_1' });
+		socket?.message({ version: 1, type: 'result', requestId: firstRequest.requestId, result: 1 });
+		await expect(first).resolves.toEqual({ result: 1 });
 
 		const second = agent.prompt('second');
 		await Promise.resolve();
 		const secondRequest = JSON.parse(socket?.sent[1] ?? '{}') as { requestId: string };
-		socket?.message({ version: 1, type: 'result', requestId: secondRequest.requestId, runId: 'run_2', result: 2 });
-		await expect(second).resolves.toEqual({ result: 2, runId: 'run_2' });
+		socket?.message({ version: 1, type: 'result', requestId: secondRequest.requestId, result: 2 });
+		await expect(second).resolves.toEqual({ result: 2 });
 
 		const ping = agent.ping();
 		await Promise.resolve();
@@ -110,7 +110,6 @@ describe('WebSocket clients', () => {
 			version: 1,
 			type: 'error',
 			requestId: request.requestId,
-			runId: 'run_fail',
 			error: { type: 'TEST', message: 'failed', details: 'failed' },
 		});
 		await expect(pending).rejects.toBeInstanceOf(FlueSocketError);
@@ -149,7 +148,7 @@ describe('WebSocket clients', () => {
 		invalidSocket?.message({ version: 1, type: 'ready', target: 'agent', name: 'assistant', instanceId: 'inst-1' });
 		const invalidPending = invalidAgent.prompt('hello');
 		await Promise.resolve();
-		invalidSocket?.message({ version: 1, type: 'event', requestId: 'request', runId: 'run_1' });
+		invalidSocket?.message({ version: 1, type: 'event', requestId: 'request' });
 		await expect(invalidPending).rejects.toThrow('invalid protocol message');
 		expect(invalidSocket?.closeCalls).toEqual([{ code: 1008, reason: 'Invalid protocol message' }]);
 

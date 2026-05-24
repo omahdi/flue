@@ -110,20 +110,20 @@ export type WebSocketServerMessage =
 			version: 1;
 			type: 'started';
 			requestId: string;
-			runId: string;
+			runId?: string;
 	  }
 	| {
 			version: 1;
 			type: 'event';
 			requestId: string;
-			runId: string;
+			runId?: string;
 			event: FlueEvent;
 	  }
 	| {
 			version: 1;
 			type: 'result';
 			requestId: string;
-			runId: string;
+			runId?: string;
 			result: unknown;
 	  }
 	| {
@@ -158,6 +158,16 @@ export type FlueEvent = (
 			startedAt: string;
 			payload: unknown;
 		}
+	| { type: 'agent_start' }
+	| { type: 'agent_end'; messages: unknown[] }
+	| { type: 'turn_start' }
+	| { type: 'turn_end'; message: unknown; toolResults: unknown[] }
+	| { type: 'message_start'; message: unknown }
+	| { type: 'message_update'; message: unknown; assistantMessageEvent: unknown }
+	| { type: 'message_end'; message: unknown }
+	| { type: 'tool_execution_start'; toolCallId: string; toolName: string; args: unknown }
+	| { type: 'tool_execution_update'; toolCallId: string; toolName: string; args: unknown; partialResult: unknown }
+	| { type: 'tool_execution_end'; toolCallId: string; toolName: string; result: unknown; isError: boolean }
 	| { type: 'text_delta'; text: string }
 	| { type: 'thinking_start' }
 	| { type: 'thinking_delta'; delta: string }

@@ -39,6 +39,7 @@ export { InMemoryDispatchQueue } from './runtime/dispatch-queue.ts';
 export type {
 	AgentHandler,
 	AttachedInvocationResult,
+	DirectAttachedOptions,
 	CreatedAgentHandler,
 	CreateContextFn,
 	HandleAgentOptions,
@@ -78,6 +79,7 @@ export {
 	handleAgentRequest,
 	handleWorkflowRequest,
 	invokeAttached,
+	invokeDirectAttached,
 	recoverAgentRun,
 	reserveDispatchAgentSession,
 	reserveRecoveredAgentSession,

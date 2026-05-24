@@ -1,4 +1,3 @@
-import type { AgentMessage } from '@earendil-works/pi-agent-core';
 import { Hono } from 'hono';
 import { describe, expect, it } from 'vitest';
 import { flue } from '../src/app.ts';
@@ -11,7 +10,6 @@ import {
 	InMemoryRunRegistry,
 	InMemoryRunStore,
 	InMemorySessionStore,
-	recoverAgentRun,
 } from '../src/internal.ts';
 import { createAgent } from '../src/agent-definition.ts';
 import { Harness } from '../src/harness.ts';
@@ -27,7 +25,7 @@ describe('direct attached agent delivery', () => {
 			initCalls.push(`${id}:${String(payload)}`);
 			return { model: false };
 		});
-		const initialize = (id: string, runId: string, payload: unknown, req: Request) => {
+		const initialize = (id: string, runId: string | undefined, payload: unknown, req: Request) => {
 			const ctx = createTestContext(id, runId, payload, req);
 			ctx.initializeCreatedAgent = async (created, agentPayload) => {
 				await created.initialize({ id: ctx.id, env: {}, payload: agentPayload });
@@ -65,7 +63,8 @@ describe('direct attached agent delivery', () => {
 		);
 
 		expect(res.status).toBe(200);
-		expect((await res.json()) as unknown).toMatchObject({ result: { text: 'reply:hello' } });
+		expect((await res.json()) as unknown).toEqual({ result: { text: 'reply:hello', usage: {}, model: { id: 'test' } } });
+		expect(res.headers.get('x-flue-run-id')).toBeNull();
 		expect(initCalls).toEqual(['inst-1:undefined']);
 		expect(prompts).toEqual([{ session: 'default', message: 'hello' }]);
 		expect(dispatches).toEqual([]);
@@ -101,170 +100,6 @@ describe('direct attached agent delivery', () => {
 		expect(prompts).toEqual([{ session: 'case:123', message: 'hello' }]);
 	});
 
-	it('persists direct input before inference and reuses it during recovery', async () => {
-		const store = new InMemorySessionStore();
-		const harness = new Harness('inst-1', 'default', testAgentConfig(), fakeEnv(), store);
-		const session = await harness.session('case:123');
-		const agent = Reflect.get(session, 'harness') as {
-			state: { messages: AgentMessage[] };
-			continue: () => Promise<void>;
-			waitForIdle: () => Promise<void>;
-		};
-		let continuations = 0;
-		agent.continue = async () => {
-			continuations++;
-			const admitted = await store.load('agent-session:["inst-1","default","case:123"]');
-			expect(admitted?.entries).toEqual([
-				expect.objectContaining({ source: 'prompt', direct: { runId: 'run-direct' } }),
-			]);
-			agent.state.messages.push({
-				role: 'assistant',
-				content: [{ type: 'text', text: 'processed' }],
-				usage: {
-					input: 0,
-					output: 0,
-					cacheRead: 0,
-					cacheWrite: 0,
-					totalTokens: 0,
-					cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-				},
-				timestamp: Date.now(),
-			} as AgentMessage);
-		};
-		agent.waitForIdle = async () => {};
-
-		const direct = session as FlueSession & { processDirectInput(input: { runId: string; message: string }): PromiseLike<unknown> };
-		await direct.processDirectInput({ runId: 'run-direct', message: 'hello' });
-		await direct.processDirectInput({ runId: 'run-direct', message: 'hello' });
-
-		const data = await store.load('agent-session:["inst-1","default","case:123"]');
-		expect(continuations).toBe(1);
-		expect(data?.entries.filter((entry) => entry.type === 'message' && entry.message.role === 'user')).toHaveLength(1);
-		expect(data?.entries[0]).toMatchObject({ direct: { runId: 'run-direct' } });
-	});
-
-	it('retries an uncommitted side effect while recovering admitted direct input', async () => {
-		const store = new InMemorySessionStore();
-		const runStore = new InMemoryRunStore();
-		const runRegistry = new InMemoryRunRegistry();
-		const runId = 'run-side-effect';
-		const payload = { message: 'hello', session: 'case:123' };
-		const owner = { kind: 'agent' as const, agentName: 'assistant', instanceId: 'inst-side-effect' };
-		const startedAt = new Date().toISOString();
-		await runStore.createRun({ runId, owner, startedAt, payload });
-		await runStore.appendEvent(runId, {
-			type: 'run_start',
-			runId,
-			owner,
-			instanceId: owner.instanceId,
-			agentName: owner.agentName,
-			startedAt,
-			payload,
-			eventIndex: 0,
-			timestamp: startedAt,
-		});
-		let sideEffects = 0;
-		const interruptedHarness = new Harness(owner.instanceId, 'default', testAgentConfig(), fakeEnv(), store);
-		const interruptedSession = await interruptedHarness.session(payload.session);
-		const interruptedAgent = Reflect.get(interruptedSession, 'harness') as {
-			continue: () => Promise<void>;
-			waitForIdle: () => Promise<void>;
-		};
-		interruptedAgent.continue = async () => {
-			sideEffects++;
-			throw new Error('simulated Durable Object reset');
-		};
-		interruptedAgent.waitForIdle = async () => {};
-		const interrupted = interruptedSession as FlueSession & { processDirectInput(input: { runId: string; message: string }): PromiseLike<unknown> };
-		await expect(interrupted.processDirectInput({ runId, message: payload.message })).rejects.toThrow('simulated Durable Object reset');
-
-		const recoveredHarness = new Harness(owner.instanceId, 'default', testAgentConfig(), fakeEnv(), store);
-		const recoveredSession = await recoveredHarness.session(payload.session);
-		const recoveredAgent = Reflect.get(recoveredSession, 'harness') as {
-			state: { messages: AgentMessage[] };
-			continue: () => Promise<void>;
-			waitForIdle: () => Promise<void>;
-		};
-		recoveredAgent.continue = async () => {
-			sideEffects++;
-			recoveredAgent.state.messages.push({
-				role: 'assistant',
-				content: [{ type: 'text', text: 'processed' }],
-				usage: {
-					input: 0,
-					output: 0,
-					cacheRead: 0,
-					cacheWrite: 0,
-					totalTokens: 0,
-					cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-				},
-				timestamp: Date.now(),
-			} as AgentMessage);
-		};
-		recoveredAgent.waitForIdle = async () => {};
-		const recovered = recoveredSession as FlueSession & { processDirectInput(input: { runId: string; message: string }): PromiseLike<unknown> };
-
-		const result = await recoverAgentRun({
-			label: owner.agentName,
-			owner,
-			id: owner.instanceId,
-			runId,
-			payload,
-			request: new Request(`http://localhost/agents/assistant/${owner.instanceId}`, { method: 'POST' }),
-			createContext: createTestContext,
-			handler: async () => recovered.processDirectInput({ runId, message: payload.message }),
-			runStore,
-			runRegistry,
-		});
-
-		const data = await store.load(`agent-session:["${owner.instanceId}","default","${payload.session}"]`);
-		const events = await runStore.getEvents(runId);
-		expect(result).toMatchObject({ isError: false });
-		expect(sideEffects).toBe(2);
-		expect(data?.entries.filter((entry) => entry.type === 'message' && entry.message.role === 'user')).toHaveLength(1);
-		expect(data?.entries[0]).toMatchObject({ direct: { runId } });
-		expect(events.map((event) => event.type)).toEqual(['run_start', 'run_end']);
-		expect(await runStore.getRun(runId)).toMatchObject({ status: 'completed' });
-	});
-
-	it('does not complete recovery from a persisted errored assistant turn', async () => {
-		const store = new InMemorySessionStore();
-		const harness = new Harness('inst-error', 'default', testAgentConfig(), fakeEnv(), store);
-		const session = await harness.session();
-		const agent = Reflect.get(session, 'harness') as {
-			state: { messages: AgentMessage[]; errorMessage?: string };
-			continue: () => Promise<void>;
-			waitForIdle: () => Promise<void>;
-		};
-		let continuations = 0;
-		agent.continue = async () => {
-			continuations++;
-			agent.state.messages.push({
-				role: 'assistant',
-				content: [{ type: 'text', text: '' }],
-				stopReason: 'error',
-				errorMessage: 'provider failed',
-				usage: {
-					input: 0,
-					output: 0,
-					cacheRead: 0,
-					cacheWrite: 0,
-					totalTokens: 0,
-					cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-				},
-				timestamp: Date.now(),
-			} as AgentMessage);
-			agent.state.errorMessage = 'provider failed';
-		};
-		agent.waitForIdle = async () => {};
-		const direct = session as FlueSession & { processDirectInput(input: { runId: string; message: string }): PromiseLike<unknown> };
-
-		await expect(direct.processDirectInput({ runId: 'run-error', message: 'hello' })).rejects.toThrow('provider failed');
-		agent.state.errorMessage = undefined;
-		await expect(direct.processDirectInput({ runId: 'run-error', message: 'hello' })).rejects.toThrow('provider failed');
-		expect(continuations).toBe(1);
-	});
-
 	it('keeps SSE streaming behavior for direct HTTP callers', async () => {
 		configureFlueRuntime({
 			target: 'node',
@@ -292,9 +127,9 @@ describe('direct attached agent delivery', () => {
 		expect(res.status).toBe(200);
 		expect(res.headers.get('content-type')).toContain('text/event-stream');
 		const stream = await res.text();
-		expect(stream).toContain('event: run_start');
+		expect(stream).not.toContain('event: run_start');
 		expect(stream).toContain('event: idle');
-		expect(stream).toContain('event: run_end');
+		expect(stream).not.toContain('event: run_end');
 	});
 
 	it('rejects non-provisional direct payload shapes clearly', async () => {
@@ -394,7 +229,7 @@ function fakeSession(session: string, prompts: Array<{ session: string; message:
 }
 
 function createFakeContext(prompts: Array<{ session: string; message: string }>) {
-	return (id: string, runId: string, payload: unknown, req: Request) => {
+	return (id: string, runId: string | undefined, payload: unknown, req: Request) => {
 		const ctx = createTestContext(id, runId, payload, req);
 		ctx.initializeCreatedAgent = async (agent, agentPayload) => {
 			await agent.initialize({ id, env: {}, payload: agentPayload });
@@ -404,7 +239,7 @@ function createFakeContext(prompts: Array<{ session: string; message: string }>)
 	};
 }
 
-function createTestContext(id: string, runId: string, payload: unknown, req: Request) {
+function createTestContext(id: string, runId: string | undefined, payload: unknown, req: Request) {
 	return createFlueContext({
 		id,
 		runId,

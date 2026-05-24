@@ -78,6 +78,16 @@ const PromptUsageSchema = v.object({
 
 export const FLUE_EVENT_TYPES = [
 	'run_start',
+	'agent_start',
+	'agent_end',
+	'turn_start',
+	'turn_end',
+	'message_start',
+	'message_update',
+	'message_end',
+	'tool_execution_start',
+	'tool_execution_update',
+	'tool_execution_end',
 	'text_delta',
 	'thinking_start',
 	'thinking_delta',
@@ -115,6 +125,16 @@ export const FlueEventSchema = v.union([
 		startedAt: v.string(),
 		payload: v.unknown(),
 	}),
+	flueEvent({ type: v.literal('agent_start') }),
+	flueEvent({ type: v.literal('agent_end'), messages: v.array(v.any()) }),
+	flueEvent({ type: v.literal('turn_start') }),
+	flueEvent({ type: v.literal('turn_end'), message: v.any(), toolResults: v.array(v.any()) }),
+	flueEvent({ type: v.literal('message_start'), message: v.any() }),
+	flueEvent({ type: v.literal('message_update'), message: v.any(), assistantMessageEvent: v.unknown() }),
+	flueEvent({ type: v.literal('message_end'), message: v.any() }),
+	flueEvent({ type: v.literal('tool_execution_start'), toolCallId: v.string(), toolName: v.string(), args: v.unknown() }),
+	flueEvent({ type: v.literal('tool_execution_update'), toolCallId: v.string(), toolName: v.string(), args: v.unknown(), partialResult: v.unknown() }),
+	flueEvent({ type: v.literal('tool_execution_end'), toolCallId: v.string(), toolName: v.string(), result: v.unknown(), isError: v.boolean() }),
 	flueEvent({ type: v.literal('text_delta'), text: v.string() }),
 	flueEvent({ type: v.literal('thinking_start') }),
 	flueEvent({ type: v.literal('thinking_delta'), delta: v.string() }),
@@ -211,15 +231,17 @@ export const RunEventListResponseSchema = v.object({
 
 export const AgentInvocationResponseSchema = v.object({
 	result: v.unknown(),
+});
+
+export const WorkflowInvocationResponseSchema = v.object({
+	result: v.unknown(),
 	_meta: v.object({ runId: v.string() }),
 });
 
-export const WebhookInvocationResponseSchema = v.object({
+export const WorkflowAdmissionResponseSchema = v.object({
 	status: v.literal('accepted'),
 	runId: v.string(),
 });
-
-export const WorkflowAdmissionResponseSchema = WebhookInvocationResponseSchema;
 
 export const AgentInvocationBodySchema = v.looseObject({});
 

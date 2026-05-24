@@ -1,5 +1,5 @@
 import { HttpClient, type HttpClientOptions, type RequestHeaders } from './http.ts';
-import { invokeAgent, type SyncInvokeResult, type WebhookInvokeResult } from './public/invoke.ts';
+import { invokeAgent, type SyncInvokeResult } from './public/invoke.ts';
 import { type StreamOptions, streamRunEvents } from './public/stream.ts';
 import {
 	connectAgentSocket,
@@ -29,7 +29,6 @@ export interface FlueClient {
 	agents: {
 		invoke(name: string, id: string, options: { mode: 'stream'; payload?: unknown; signal?: AbortSignal }): AsyncIterable<import('./types.ts').FlueEvent>;
 		invoke(name: string, id: string, options: { mode: 'sync'; payload?: unknown; signal?: AbortSignal }): Promise<SyncInvokeResult>;
-		invoke(name: string, id: string, options: { mode: 'webhook'; payload?: unknown; signal?: AbortSignal }): Promise<WebhookInvokeResult>;
 		connect(name: string, id: string): AgentSocket;
 	};
 	workflows: {
@@ -40,7 +39,6 @@ export interface FlueClient {
 		instances: { list(agentName: string, options?: ListOptions): Promise<ListResponse<InstanceSummary>> };
 		runs: {
 			list(options?: ListRunsOptions): Promise<ListResponse<RunPointer>>;
-			listForInstance(agentName: string, instanceId: string, options?: ListRunsOptions): Promise<ListResponse<RunPointer>>;
 			get(runId: string): Promise<RunRecord>;
 		};
 	};
@@ -99,11 +97,6 @@ export function createFlueClient(options: CreateFlueClientOptions): FlueClient {
 			},
 			runs: {
 				list: (opts = {}) => http.json({ path: `${adminBasePath}/runs`, query: runsQuery(opts) }),
-				listForInstance: (agentName, instanceId, opts = {}) =>
-					http.json({
-						path: `${adminBasePath}/agents/${encodeURIComponent(agentName)}/instances/${encodeURIComponent(instanceId)}/runs`,
-						query: runsQuery(opts),
-					}),
 				get: (runId) => http.json({ path: `${adminBasePath}/runs/${encodeURIComponent(runId)}` }),
 			},
 		},
