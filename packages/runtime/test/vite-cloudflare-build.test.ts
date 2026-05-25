@@ -62,7 +62,6 @@ async function createGeneratedFixture(mode: 'build' | 'development'): Promise<{ 
 		path.join(root, 'node_modules', 'agents'),
 		'dir',
 	);
-	fs.symlinkSync(path.resolve(process.cwd(), 'node_modules/just-bash'), path.join(root, 'node_modules', 'just-bash'), 'dir');
 	fs.mkdirSync(path.join(root, 'agents'));
 	fs.mkdirSync(path.join(root, 'workflows'));
 	fs.mkdirSync(path.join(root, 'skills', 'review'), { recursive: true });

@@ -118,6 +118,8 @@ describe('Cloudflare build plugin', () => {
 		expect(entry).toContain("import { getPackagedSkills } from 'virtual:flue/packaged-skills';");
 		expect(entry).toContain('const packagedSkills = getPackagedSkills();');
 		expect(entry).toContain('systemPrompt, skills, packagedSkills, model: undefined, resolveModel');
+		expect(entry).toContain('Bash,\n  InMemoryFs,\n  createFlueContext,');
+		expect(entry).not.toContain("from 'just-bash'");
 	});
 
 });

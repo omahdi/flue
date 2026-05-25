@@ -60,8 +60,9 @@ ${packagedSkillsImport}
 import { serve } from '@hono/node-server';
 import { WebSocketServer } from 'ws';
 import { createNodeWebSocketTransport } from '@flue/runtime/node';
-import { Bash, InMemoryFs } from 'just-bash';
 import {
+  Bash,
+  InMemoryFs,
   createFlueContext,
   InMemorySessionStore,
   InMemoryRunStore,

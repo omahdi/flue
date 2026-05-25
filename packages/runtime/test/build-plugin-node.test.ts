@@ -18,6 +18,8 @@ describe('Node build plugin', () => {
 		expect(entry).toContain("import * as channel_slack_0 from '/tmp/slack.ts'");
 		expect(entry).toContain("import { getPackagedSkills } from 'virtual:flue/packaged-skills';");
 		expect(entry).toContain('const packagedSkills = getPackagedSkills();');
+		expect(entry).toContain('Bash,\n  InMemoryFs,\n  createFlueContext,');
+		expect(entry).not.toContain("from 'just-bash'");
 		expect(entry).toContain('const workflowHandlers = {};');
 		expect(entry).toContain('const websocketAgentHandlers = {};');
 		expect(entry).toContain('const websocketWorkflowHandlers = {};');

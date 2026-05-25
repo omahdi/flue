@@ -185,8 +185,9 @@ export class CloudflarePlugin implements BuildPlugin {
 ${packagedSkillsImport}
 import { env } from 'cloudflare:workers';
 import { Agent, getAgentByName, routeAgentRequest } from 'agents';
-import { Bash, InMemoryFs } from 'just-bash';
 import {
+  Bash,
+  InMemoryFs,
   createFlueContext,
   InMemorySessionStore,
   InMemoryRunStore,

@@ -9,6 +9,7 @@
  * User agent code should never import from here.
  */
 import { type Api, getModel, type KnownProvider, type Model } from '@earendil-works/pi-ai';
+export { Bash, InMemoryFs } from 'just-bash';
 import {
 	getProviderConfiguration,
 	resolveRegisteredModel,
