@@ -29,14 +29,13 @@ import {
 	prepareCompaction,
 	shouldCompact,
 } from './compaction.ts';
-import { resolveSkillFilePath, skillsDirIn } from './context.ts';
+import { skillsDirIn } from './context.ts';
 import {
 	buildPackagedSkillPrompt,
 	buildPromptText,
 	buildResultFollowUpPrompt,
 	buildSkillByNamePrompt,
 	buildSkillByPathlessNamePrompt,
-	buildSkillByPathPrompt,
 	createResultTools,
 	type ResultToolBundle,
 	ResultUnavailableError,
@@ -707,17 +706,7 @@ export class Session implements FlueSession {
 				let promptText: string;
 				let skillName: string;
 				let activePackagedSkills: Record<string, PackagedSkillDirectory> | undefined;
-				if (typeof skill === 'string' && (skill.includes('/') || /\.(md|markdown)$/i.test(skill))) {
-					const resolvedPath = await resolveSkillFilePath(this.env, this.env.cwd, skill);
-					if (!resolvedPath) {
-						throw new Error(
-							`[flue] Skill file "${skill}" not found at ${skillsDirIn(this.env.cwd)}/${skill} ` +
-								`inside the session's sandbox. Make sure the file exists at that path.`,
-						);
-					}
-					promptText = buildSkillByPathPrompt(skill, resolvedPath, options?.args, schema);
-					skillName = skill;
-				} else if (typeof skill === 'string') {
+				if (typeof skill === 'string') {
 					const registered = this.config.skills[skill];
 					if (registered && 'body' in registered && 'source' in registered) {
 						promptText = buildSkillByNamePrompt(registered, options?.args, schema);

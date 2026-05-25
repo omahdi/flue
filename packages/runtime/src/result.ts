@@ -118,36 +118,6 @@ export function buildSkillByPathlessNamePrompt(
 	return parts.join('\n');
 }
 
-/**
- * Build the user-facing prompt text for a `session.skill('<path>')` call,
- * where `<path>` is a relative path under `.agents/skills/` (e.g.
- * `'triage/reproduce.md'`). Path-based references bypass the registry
- * — the skill isn't named in the system prompt's "Available Skills"
- * list — so we hand the model the resolved absolute path explicitly.
- */
-export function buildSkillByPathPrompt(
-	relPath: string,
-	resolvedPath: string,
-	args?: Record<string, unknown>,
-	schema?: v.GenericSchema,
-): string {
-	const parts: string[] = [
-		`Run the skill file \`${relPath}\`.`,
-		'',
-		`The file can be found at ${resolvedPath}.`,
-	];
-
-	if (args && Object.keys(args).length > 0) {
-		parts.push('', 'Arguments:', JSON.stringify(args, null, 2));
-	}
-
-	if (schema) {
-		parts.push(buildResultFooter());
-	}
-
-	return parts.join('\n');
-}
-
 export function buildPromptText(text: string, schema?: v.GenericSchema): string {
 	const parts: string[] = [text];
 

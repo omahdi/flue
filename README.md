@@ -135,10 +135,8 @@ export async function run({ init, payload }: FlueContext) {
   const harness = await init(agent);
   const session = await harness.session();
 
-  // Skills can be referenced either by their frontmatter `name:` (shown below)
-  // or by a relative path under `.agents/skills/` — e.g.
-  // `session.skill('triage/reproduce.md', ...)`. Path references are handy for
-  // skill packs that group multiple stages under one directory.
+  // Workspace-discovered skills are activated by their frontmatter `name:`.
+  // Statically imported packaged skills can also be activated by passing their reference.
   const { data } = await session.skill('triage', {
     // Pass arguments to any prompt or skill.
     args: { issueNumber: payload.issueNumber },

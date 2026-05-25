@@ -2,41 +2,8 @@
  * Context discovery: reads AGENTS.md and .agents/skills/ from a session's
  * working directory. Used at runtime by the session initialisation path.
  */
+import { parseSkillMarkdown } from './skill-frontmatter.ts';
 import type { SessionEnv, Skill } from './types.ts';
-
-// ─── Frontmatter Parsing ────────────────────────────────────────────────────
-
-interface FrontmatterResult {
-	name: string;
-	description: string;
-	body: string;
-	frontmatter: Record<string, string>;
-}
-
-/** Parse optional YAML frontmatter (--- delimited). Basic `key: value` only. */
-function parseFrontmatterFile(content: string, defaultName: string): FrontmatterResult {
-	const frontmatterMatch = content.match(/^---\s*\n([\s\S]*?)\n---\s*\n([\s\S]*)$/);
-
-	if (!frontmatterMatch) {
-		return { name: defaultName, description: '', body: content.trim(), frontmatter: {} };
-	}
-
-	const rawFrontmatter = frontmatterMatch[1] ?? '';
-	const body = frontmatterMatch[2] ?? '';
-	const frontmatter: Record<string, string> = {};
-
-	for (const line of rawFrontmatter.split('\n')) {
-		const match = line.match(/^(\w+):\s*(.+)$/);
-		if (match?.[1] && match[2]) frontmatter[match[1]] = match[2].trim();
-	}
-
-	return {
-		name: frontmatter.name || defaultName,
-		description: frontmatter.description || '',
-		body: body.trim(),
-		frontmatter,
-	};
-}
 
 // ─── Context Discovery ──────────────────────────────────────────────────────
 
@@ -58,31 +25,6 @@ async function readAgentsMd(env: SessionEnv, basePath: string): Promise<string> 
 /** Path to the skills directory under a given base path. */
 export function skillsDirIn(basePath: string): string {
 	return basePath.endsWith('/') ? `${basePath}.agents/skills` : `${basePath}/.agents/skills`;
-}
-
-/**
- * Resolve a skill referenced by relative path under `.agents/skills/`,
- * returning the absolute filesystem path or `null` if the file doesn't
- * exist.
- *
- * The relative path is taken as-is — no extension is auto-appended.
- * Callers reference the full filename, e.g. `'triage/reproduce.md'`.
- *
- * Used by `session.skill()` when the caller passes a path-shaped name
- * (contains `/` or ends in `.md`/`.markdown`). Path-based references
- * bypass the skill registry entirely — the model is given the resolved
- * path and reads the file directly. We don't parse the file here
- * because nothing on the server side needs the frontmatter for these
- * skills; only the model does, and it reads the file itself.
- */
-export async function resolveSkillFilePath(
-	env: SessionEnv,
-	basePath: string,
-	relPath: string,
-): Promise<string | null> {
-	const filePath = `${skillsDirIn(basePath)}/${relPath}`;
-	if (!(await env.exists(filePath))) return null;
-	return filePath;
 }
 
 /**
@@ -120,7 +62,7 @@ async function discoverLocalSkills(
 		if (!(await env.exists(skillMdPath))) continue;
 
 		const content = await env.readFile(skillMdPath);
-		const parsed = parseFrontmatterFile(content, entry);
+		const parsed = parseSkillMarkdown(content, { directoryName: entry, path: skillMdPath });
 		skills[parsed.name] = {
 			name: parsed.name,
 			description: parsed.description,

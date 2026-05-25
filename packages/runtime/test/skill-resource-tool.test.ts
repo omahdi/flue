@@ -154,6 +154,29 @@ describe('bundled skill activation prompt', () => {
 		expect(fileContents).toBe('License terms.');
 	});
 
+	it('activates a registered packaged reference by name', async () => {
+		const harness = new Harness('instance', 'default', createAgentConfig({ review: packagedReference }), createEnv(), new InMemorySessionStore());
+		const session = await harness.session();
+		const agent = Reflect.get(session, 'harness') as { state: { messages: AgentMessage[] }; prompt(text: string): Promise<void>; waitForIdle(): Promise<void> };
+		let prompt = '';
+		agent.prompt = async (text) => {
+			prompt = text;
+			agent.state.messages.push(assistantMessage('reviewed'));
+		};
+		agent.waitForIdle = async () => {};
+
+		await session.skill('review');
+
+		expect(prompt).toContain('<skill_instructions>\nReview.\n</skill_instructions>');
+	});
+
+	it('does not accept file paths as string skill activation names', async () => {
+		const harness = new Harness('instance', 'default', createAgentConfig({}), createEnv(), new InMemorySessionStore());
+		const session = await harness.session();
+
+		await expect(session.skill('review/SKILL.md')).rejects.toThrow('Skill "review/SKILL.md" not registered');
+	});
+
 	it('exposes active packaged files through connector-backed sessions', async () => {
 		const harness = new Harness(
 			'instance',
