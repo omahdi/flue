@@ -7,7 +7,7 @@ import triage from '../skills/triage/SKILL.md' with { type: 'skill' };
 import verify from '../skills/verify/SKILL.md' with { type: 'skill' };
 import * as githubTools from '../tools/github.ts';
 
-// Give persistent context and autonomy to solve complex tasks:
+// Give agents the context and autonomy to solve complex tasks:
 const instructions = \`
 Triage a bug report end-to-end: reproduce the bug,
 diagnose the root cause, verify whether the behavior is
