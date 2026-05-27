@@ -322,6 +322,20 @@ not already present:
 Worker Loader is currently beta-gated. Never invent Cloudflare account details
 or tokens; the user authenticates through their existing Wrangler setup.
 
+## Behavior and tradeoffs
+
+This connector is not Flue's default just-bash virtual sandbox. It replaces the
+normal shell and file-manipulation tool set with a `code` tool that runs
+JavaScript against the Workspace `state.*` API. Application code can still use
+`session.fs` and `harness.fs` against the same Workspace; `session.shell()` and
+`harness.shell()` throw.
+
+R2 hydration is an eager copy into the Workspace, not a live bucket mount.
+Callers should use a sentinel file, as in the example below, and treat the
+Workspace as the owner of mutations after hydration. If the user needs Linux
+commands, language toolchains, or R2 keys exposed as mounted filesystem paths,
+use `@cloudflare/sandbox` Containers with `mountBucket` instead.
+
 ## Wiring it into a workflow
 
 ```ts

@@ -52,9 +52,10 @@ resources. You have two options:
 - **`wrangler deploy` to a preview environment** — deploy first, exercise
   the agent over HTTP afterward.
 
-If your account doesn't have Worker Loader access at all, the migration
-path is `@cloudflare/sandbox` (Containers + `mountBucket`) — see
-`../../docs/cloudflare-shell.md` for the comparison.
+The cf-shell connector exposes a JavaScript `code` tool over its Workspace,
+not bash or a live R2 mount. If your account doesn't have Worker Loader
+access, or you need Linux tools or bucket paths mounted directly, use
+`@cloudflare/sandbox` (Containers + `mountBucket`) instead.
 
 ### Seeding R2 (skills-from-r2 only)
 
@@ -98,9 +99,8 @@ storage) to force re-hydration.
 
 ## Migrating from `getVirtualSandbox`
 
-If you're coming from `getVirtualSandbox(env.BUCKET)`, the moral
-equivalent is `getShellSandbox({ workspace, loader })` + an explicit
+If you're coming from `getVirtualSandbox(env.BUCKET)`, the replacement is
+`getShellSandbox({ workspace, loader })` plus an explicit
 `hydrateFromBucket(workspace, env.BUCKET)` step before the sandbox is
-created. `skills-from-r2.ts` is the canonical example of that flow.
-See `../../docs/cloudflare-shell.md` for the full background on why this
-replaced the previous API.
+created. `skills-from-r2.ts` is the canonical example of that flow. R2 is
+only a hydration source here; it is not mounted as the Workspace filesystem.
