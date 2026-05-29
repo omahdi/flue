@@ -204,7 +204,7 @@ With this composition, the mounted paths become `/api/agents/:name/:id`, `/api/w
 
 The current SDK provides configurable WebSocket and admin mount paths, but its ordinary `client.agents.invoke(...)` and `client.runs.*` HTTP helpers request root `/agents/...` and `/runs/...` paths. For a prefixed `flue()` HTTP mount, call it with `fetch`, keep an unprefixed authenticated mount for those SDK helpers, or provide a reverse-proxy mapping that exposes their expected paths.
 
-Use [Configuration](/docs/guide/configuration/) to select Node or Cloudflare build targets; runtime middleware and mounts belong in `app.ts`, not in `flue.config.ts`. Continue to [Build & Deploy](/docs/guide/deployment/) to verify the published surface and choose a target-specific Ecosystem deployment page.
+Use [Configuration](/docs/reference/configuration/) to select Node or Cloudflare build targets; runtime middleware and mounts belong in `app.ts`, not in `flue.config.ts`. Continue to [Build & Deploy](/docs/guide/deployment/) to verify the published surface and choose a target-specific Ecosystem deployment page.
 
 ## Expose direct agent interactions over HTTP
 

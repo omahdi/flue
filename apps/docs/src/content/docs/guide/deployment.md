@@ -76,7 +76,7 @@ export default defineConfig({
 });
 ```
 
-`flue.config.ts` configures build selection only: `target`, `root`, and `output`. Put models and provider registration in authored runtime modules, authentication and mounted routes in `app.ts`, and Cloudflare bindings in Wrangler configuration. See [Configuration](/docs/guide/configuration/) for path resolution and CLI overrides.
+`flue.config.ts` configures build selection only: `target`, `root`, and `output`. Put models and provider registration in authored runtime modules, authentication and mounted routes in `app.ts`, and Cloudflare bindings in Wrangler configuration. See [Configuration](/docs/reference/configuration/) for path resolution and CLI overrides.
 
 ## Build the deployment artifact
 

@@ -63,7 +63,7 @@ Flue uses `src/` as its recommended source directory. If your project needs a di
 
 The first matching directory wins. For example, if  `.flue/` exists, modules in `src/` and the project root are ignored and not discovered (unless imported from within the `.flue` directory, however reaching outside of the source directory like this is not recommended).
 
-The source directory is always discovered relative to your project root. To configure the project root, see [Configuration](/docs/guide/configuration/).
+The source directory is always discovered relative to your project root. To configure the project root, see [Configuration](/docs/reference/configuration/).
 
 ## Customizing the `dist/` directory
 
@@ -79,4 +79,4 @@ export default defineConfig({
 });
 ```
 
-For more information about project and output configuration, see [Configuration](/docs/guide/configuration/).
+For more information about project and output configuration, see [Configuration](/docs/reference/configuration/).

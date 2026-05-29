@@ -231,7 +231,7 @@ For ordinary catalog-backed HTTP providers, put credentials in the environment a
 
 Do not put credential values in agent modules, profiles, prompts, or committed configuration files.
 
-For Node.js local development and one-shot workflow runs, supply environment files through the Node commands documented in [Configuration](/docs/guide/configuration/) and [Deploy on Node.js](/docs/ecosystem/deploy/node/). For example, a Node-target application can use `flue dev --target node --env .env` after storing its provider variable in an ignored `.env` file.
+For Node.js local development and one-shot workflow runs, supply environment files through the Node commands documented in [Configuration](/docs/reference/configuration/) and [Deploy on Node.js](/docs/ecosystem/deploy/node/). For example, a Node-target application can use `flue dev --target node --env .env` after storing its provider variable in an ignored `.env` file.
 
 For local Cloudflare development, use Wrangler/Vite local variable conventions: place local variables in `.dev.vars` or `.env` beside your Wrangler configuration, and run:
 
@@ -420,4 +420,4 @@ Flue accepts `thinkingLevel` on agents and operations using `cloudflare/...` bec
 
 Use the binding-backed form when your Worker should call Workers AI through its platform binding. Use a URL-backed Cloudflare catalog provider only when your application intentionally needs that HTTP credential-and-endpoint flow.
 
-Continue to [Build & Deploy](/docs/guide/deployment/) for target and durability decisions, [Deploy on Cloudflare](/docs/ecosystem/deploy/cloudflare/) for platform configuration, [Configuration](/docs/guide/configuration/) for application setup boundaries, [Agents](/docs/guide/building-agents/) for continuing session behavior, and [Workflows](/docs/guide/workflows/) for initializing model-driven work inside finite operations.
+Continue to [Build & Deploy](/docs/guide/deployment/) for target and durability decisions, [Deploy on Cloudflare](/docs/ecosystem/deploy/cloudflare/) for platform configuration, [Configuration](/docs/reference/configuration/) for application setup boundaries, [Agents](/docs/guide/building-agents/) for continuing session behavior, and [Workflows](/docs/guide/workflows/) for initializing model-driven work inside finite operations.

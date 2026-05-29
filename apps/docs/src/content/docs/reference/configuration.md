@@ -5,7 +5,7 @@ description: Configure project targets, source roots, outputs, and development e
 
 Use `flue.config.ts` to describe how the Flue CLI finds and builds your project. It is the place to select a build/development target and stable filesystem locations. It is **not** runtime application configuration: models, providers, platform bindings consumed by application code, authentication, and application routing are configured in authored modules or platform configuration instead.
 
-This guide shows how to set one consistent project configuration, override it for individual commands, and handle local environment values for Node.js and Cloudflare targets.
+This reference describes the configuration surface, command-line overrides, and local environment behavior for Node.js and Cloudflare targets.
 
 ## Create a configuration file
 
@@ -111,19 +111,20 @@ flue connect assistant customer-123
 
 ## Configure source root and output
 
-`root` is the project directory that contains your Flue source layout. Within the resolved root, Flue reads source modules from one of two layouts:
+`root` is the project directory that contains your Flue source layout. Within the resolved root, Flue selects the first existing source directory in this order:
 
-- if `<root>/.flue/` exists, modules are discovered under `.flue/`, such as `.flue/agents/`, `.flue/workflows/`, and `.flue/app.ts`;
-- otherwise, modules are discovered directly under the root, such as `agents/`, `workflows/`, and `app.ts`.
+1. `<root>/.flue/`
+2. `<root>/src/`
+3. `<root>/`
 
-The layouts are alternatives: creating `.flue/` makes it the source location, and root-level agent or workflow directories are not also discovered. Current source-root selection checks for any existing `.flue` filesystem entry, so an accidental file named `.flue` also prevents root-level source discovery. See [Project Layout](/docs/guide/project-layout/) before changing a project's root or layout.
+The layouts are alternatives: only one source directory is selected, and authored modules in lower-priority locations are not also discovered. Only directories select a source location; a file named `.flue` or `src` does not. See [Project Layout](/docs/guide/project-layout/) before changing a project's root or layout.
 
 For a standalone project whose config is beside its sources, the defaults are usually sufficient:
 
 ```text
 assistant/
 ├── flue.config.ts
-├── .flue/
+├── src/
 │   ├── agents/
 │   └── workflows/
 └── dist/
@@ -146,7 +147,7 @@ repository/
 ├── flue.config.ts
 ├── services/
 │   └── assistant/
-│       └── .flue/
+│       └── src/
 └── generated/
 ```
 
@@ -333,7 +334,7 @@ A `flue.config.*` file never selects a model, registers provider credentials, ad
 
 | You need to configure… | Put it in… | Continue reading… |
 | --- | --- | --- |
-| Build target, source root, generated output | `flue.config.ts` or one-time CLI flags | This guide and the [CLI reference](/docs/cli/overview/) |
+| Build target, source root, generated output | `flue.config.ts` or one-time CLI flags | This reference and the [CLI reference](/docs/cli/overview/) |
 | Provider registration, model IDs, or operation model choices | Authored agent/application runtime code, including `app.ts` where provider setup is needed | [Models & Providers](/docs/guide/models/) |
 | Middleware, authentication, mounted prefixes, or custom endpoints | Authored `app.ts` and route exports | [Routing](/docs/guide/routing/) |
 | Agents, workflows, and source layout | `agents/`, `workflows/`, and optional `app.ts` under the chosen source layout | [Project Layout](/docs/guide/project-layout/) |
@@ -374,7 +375,7 @@ assistant/
 ├── flue.config.ts
 ├── wrangler.jsonc
 ├── .dev.vars
-├── .flue/
+├── src/
 └── dist/
 ```
 

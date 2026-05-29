@@ -39,7 +39,6 @@ export const docsSections: DocsSection[] = [
 				title: 'Guides',
 				items: [
 					{ title: 'Project Layout', slug: 'guide/project-layout' },
-					{ title: 'Configuration', slug: 'guide/configuration' },
 					{ title: 'Models & Providers', slug: 'guide/models' },
 					{ title: 'Agents', slug: 'guide/building-agents' },
 					{ title: 'Workflows', slug: 'guide/workflows' },
@@ -64,6 +63,7 @@ export const docsSections: DocsSection[] = [
 			{
 				title: 'Runtime',
 				items: [
+					{ title: 'Configuration', slug: 'reference/configuration' },
 					{ title: 'Agent API', slug: 'api/agent-api' },
 					{ title: 'Workflows API', slug: 'api/workflows-api' },
 					{ title: 'Harness API', slug: 'api/harness-api' },
