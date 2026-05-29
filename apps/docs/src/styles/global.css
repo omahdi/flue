@@ -168,6 +168,14 @@
 	padding-left: 1.5rem;
 }
 
+.docs-content ol {
+	list-style: decimal;
+}
+
+.docs-content ol > li::marker {
+	color: #a8a9b0;
+}
+
 .docs-content li {
 	padding-left: 0.2rem;
 }

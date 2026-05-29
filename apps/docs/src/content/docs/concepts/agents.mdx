@@ -8,7 +8,7 @@ Ask ten people what an "AI agent" is and you'll get ten answers: a chatbot, a cl
 
 Our preferred definition of an agent is: **a large language model (LLM) running inside a harness.**  The model is the part that you're probably already familiar with: GPT 5.5, Opus 4.8, etc. So let's spend some time on the other half of the equation.
 
-The harness is what the LLM uses to interact with the rest of the world and drive itself towards completing the tasks you give it. This is what makes a model useful for real work, and it's essential to building autonomous agents and workflows. Without a harness, you're stuck hooking up different LLM API calls yourself in a way that limits true autonomy.
+The harness is what the LLM uses to interact with the rest of the world and drive itself towards completing the tasks you give it. It's what makes a model useful for real work, and it's essential to building autonomous agents and workflows. Without a harness, a model can only respond to the individual API calls you write for it, which is not a real agent. The harness is what turns a model into one.
 
 Flue ships a programmable TypeScript agent harness out of the box. It was the first framework built entirely around the harness, because we are strong believers in this architecture and what it unlocks.
 
